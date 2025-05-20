@@ -1,0 +1,25 @@
+# Ignore video files
+*.mp4
+
+# Ignore image files
+*.png
+
+# Ignore the backup folder
+/backup/
+
+# Ignore CSV and GPX data files in case they contain sensitive location data
+*.csv
+*.gpx
+
+# Ignore temporary files that might be created during processing
+*.txt
+*_thresh.png
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
