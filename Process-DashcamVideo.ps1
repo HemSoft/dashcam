@@ -16,6 +16,9 @@ param(
     [switch]$ExtractOnly = $false, # Skip cropping if set to true
 
     [Parameter(Mandatory = $false)]
+    [switch]$KeepOriginalFrames = $false, # Keep original uncropped frames
+    
+    [Parameter(Mandatory = $false)]
     [int]$SampleDuration = 0 # Number of seconds to sample from the start of the video (0 = entire video)
 )
 
@@ -65,9 +68,11 @@ function New-OutputDirectory {
     .SYNOPSIS
         Creates the necessary output directories
     .DESCRIPTION
-        Creates the main output directory and cropped subdirectory
+        Creates the main output directory and optional cropped subdirectory
     .PARAMETER VideoPath
         Path to the source video file
+    .PARAMETER KeepOriginalFrames
+        Whether to keep original frames (requires a separate directory for cropped frames)
     .PARAMETER ExtractOnly
         Whether we're only extracting frames (no cropping)
     .OUTPUTS
@@ -78,22 +83,23 @@ function New-OutputDirectory {
         [string]$VideoPath,
 
         [Parameter(Mandatory = $false)]
+        [switch]$KeepOriginalFrames = $false,
+
+        [Parameter(Mandatory = $false)]
         [switch]$ExtractOnly = $false
     )
 
     # Create output directory with same name as the video file (without extension)
     $videoFileName = [System.IO.Path]::GetFileNameWithoutExtension($VideoPath)
-    $outputDir = Join-Path -Path (Split-Path -Path $VideoPath -Parent) -ChildPath $videoFileName
-
-    # Ensure the output directory exists
+    $outputDir = Join-Path -Path (Split-Path -Path $VideoPath -Parent) -ChildPath $videoFileName    # Ensure the output directory exists
     if (!(Test-Path -Path $outputDir)) {
         New-Item -ItemType Directory -Path $outputDir | Out-Null
         Write-Host "Created output directory: $outputDir" -ForegroundColor Green
     }
 
-    # Always create a subdirectory for cropped frames
+    # Create a subdirectory for cropped frames if needed
     $croppedDir = $outputDir
-    if (!$ExtractOnly) {
+    if (!$ExtractOnly -and $KeepOriginalFrames) {
         # Create a more descriptive name for the cropped directory
         $croppedDir = Join-Path -Path $outputDir -ChildPath "${videoFileName}_cropped"
         if (!(Test-Path -Path $croppedDir)) {
@@ -177,9 +183,10 @@ function ConvertTo-CroppedMetadata {
     .PARAMETER SourceDir
         Directory containing the source images
     .PARAMETER CroppedDir
-        Directory where cropped images will be saved
-    .PARAMETER BottomHeight
+        Directory where cropped images will be saved    .PARAMETER BottomHeight
         Height of the bottom strip to crop in pixels
+    .PARAMETER KeepOriginalFrames
+        Whether to keep original frames (determines output location)
     #>
     param (
         [Parameter(Mandatory = $true)]
@@ -189,7 +196,10 @@ function ConvertTo-CroppedMetadata {
         [string]$CroppedDir,
 
         [Parameter(Mandatory = $false)]
-        [int]$BottomHeight = 100
+        [int]$BottomHeight = 100,
+
+        [Parameter(Mandatory = $false)]
+        [switch]$KeepOriginalFrames = $false
     )
 
     Write-Host "Starting to crop frames to extract metadata area..." -ForegroundColor Cyan
@@ -202,18 +212,21 @@ function ConvertTo-CroppedMetadata {
         return
     }
 
-    Write-Host "Found $($pngFiles.Count) PNG files to process" -ForegroundColor Cyan
-
-    # Process each PNG file
+    Write-Host "Found $($pngFiles.Count) PNG files to process" -ForegroundColor Cyan    # Process each PNG file
     $processedCount = 0
     $croppedFiles = @()
-
     foreach ($file in $pngFiles) {
         $inputPath = $file.FullName
 
-        # Always create a new filename with _cropped suffix
-        $croppedFileName = "$($file.BaseName)_cropped$($file.Extension)"
-        $outputPath = Join-Path -Path $CroppedDir -ChildPath $croppedFileName
+        if ($KeepOriginalFrames) {
+            # When keeping originals, create new files with _cropped suffix
+            $croppedFileName = "$($file.BaseName)_cropped$($file.Extension)"
+            $outputPath = Join-Path -Path $CroppedDir -ChildPath $croppedFileName
+        }
+        else {
+            # Otherwise, overwrite the original files
+            $outputPath = $inputPath
+        }
 
         # Get image dimensions
         $dimensions = magick identify -format "%w %h" $inputPath
@@ -1180,18 +1193,16 @@ if (!(Test-RequiredTools -SkipImageMagick:$ExtractOnly)) {
 }
 
 # Create necessary directories
-$directories = New-OutputDirectory -VideoPath $VideoPath -ExtractOnly:$ExtractOnly
+$directories = New-OutputDirectory -VideoPath $VideoPath -KeepOriginalFrames:$KeepOriginalFrames -ExtractOnly:$ExtractOnly
 
 # Extract frames from the video
 Export-VideoFrames -VideoPath $VideoPath -OutputDir $directories.OutputDir -VideoFileName $directories.VideoFileName -FrameRate $FrameRate -SampleDuration $SampleDuration
 
 # Crop the frames if not in extract-only mode
 if (!$ExtractOnly) {
-    # Always use the cropped directory for output now
-    $croppedFiles = ConvertTo-CroppedMetadata -SourceDir $directories.OutputDir -CroppedDir $directories.CroppedDir -BottomHeight $BottomHeight
-
-    # Always use the cropped directory for OCR processing
-    $ocrSourceDir = $directories.CroppedDir
+    # Use the appropriate directory for output based on KeepOriginalFrames setting
+    $croppedFiles = ConvertTo-CroppedMetadata -SourceDir $directories.OutputDir -CroppedDir $directories.CroppedDir -BottomHeight $BottomHeight -KeepOriginalFrames:$KeepOriginalFrames    # Choose the appropriate directory for OCR processing based on KeepOriginalFrames setting
+    $ocrSourceDir = if ($KeepOriginalFrames) { $directories.CroppedDir } else { $directories.OutputDir }
 
     # Get the full path to the original video file
     $fullVideoPath = Resolve-Path -Path $VideoPath
