@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  dashcam-processor:
+    build: 
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+    volumes:
+      - ..:/workspace:cached
+    command: sleep infinity
+    # Uncomment the next line if you want to run with a desktop environment
+    # to visualize GPX files directly inside the container
+    # environment:
+    #   - DISPLAY=${DISPLAY}
+    # volumes:
+    #   - /tmp/.X11-unix:/tmp/.X11-unix

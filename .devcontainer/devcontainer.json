@@ -1,0 +1,30 @@
+{
+    "name": "Dashcam Processing Environment",
+    "dockerComposeFile": "docker-compose.yml",
+    "service": "dashcam-processor",
+    "workspaceFolder": "/workspace",
+    "features": {
+        "ghcr.io/devcontainers/features/git:1": {},
+        "ghcr.io/devcontainers/features/github-cli:1": {}
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-vscode.powershell",
+                "redhat.vscode-yaml",
+                "ms-azuretools.vscode-docker"
+            ],
+            "settings": {
+                "terminal.integrated.defaultProfile.linux": "pwsh",
+                "terminal.integrated.profiles.linux": {
+                    "pwsh": {
+                        "path": "pwsh",
+                        "icon": "terminal-powershell"
+                    }
+                }
+            }
+        }
+    },
+    "postCreateCommand": "pwsh -c 'Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser; echo \"Installing required PowerShell modules...\"'",
+    "remoteUser": "vscode"
+}
